@@ -1,0 +1,458 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongodb-ctrl-center
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongodb-ctrl-center
+        app: mongodb
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: mongodb-ctrl-center
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        imagePullPolicy: Always
+        env:
+        - name: MODE
+          value: "cluster_ctrl"
+        - name: MONGOSVC
+          value: mongo-cluster-svc-np
+        - name: MONGOCONFIG
+          value: mongoconf-cluster-node
+        - name: MONGOCONFIGSVC
+          value: mongoconf-cluster-svc
+        - name: MONGOSHARD1
+          value: mongoshard1-cluster-node
+        - name: MONGOSHARD1SVC
+          value: mongoshard1-cluster-svc
+        - name: MONGOSHARD2
+          value: mongoshard2-cluster-node
+        - name: MONGOSHARD2SVC
+          value: mongoshard2-cluster-svc
+        - name: MONGOSHARD3
+          value: mongoshard3-cluster-node
+        - name: MONGOSHARD3SVC
+          value: mongoshard3-cluster-svc
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        #command:
+        args: ["/console.sh"]
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongo-cluster-node
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        task: mongos
+        name: mongo-cluster-node
+        k8s-app: mongos
+    spec:
+#     volumes:
+#       - name: secrets-volume
+#         secret:
+#           secretName: shared-bootstrap-data
+#           defaultMode: 256
+      containers:
+      - name: mongos
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        env:
+#         - name: MONGOSVC
+#           value: "mongoconf-cluster-svc"
+#         - name: MONGONODE
+#           value: "mongoconf-cluster-node"
+#         - name: CLUSTERNAME
+#           value: "mongoconfcluster"
+#         - name: PORT
+#           value: "27017"
+#         - name: MY_POD_NAME
+#           valueFrom:
+#             fieldRef:
+#               fieldPath: metadata.name
+#         - name: MY_POD_NAMESPACE
+#           valueFrom:
+#             fieldRef:
+#               fieldPath: metadata.namespace
+        command:
+          - "numactl"
+          - "--interleave=all"
+          - "mongos"
+          - "--port"
+          - "27017"
+          - "--bind_ip"
+          - "0.0.0.0"
+          - "--configdb"
+          - "ConfigDBRepSet/mongoconf-cluster-node-0.mongoconf-cluster-svc:27017,mongoconf-cluster-node-1.mongoconf-cluster-svc:27017,mongoconf-cluster-node-2.mongoconf-cluster-svc:27017"
+#            - "--clusterAuthMode"
+#            - "keyFile"
+#            - "--keyFile"
+#            - "/etc/secrets-volume/internal-auth-mongodb-keyfile"
+#            - "--setParameter"
+#            - "authenticationMechanisms=SCRAM-SHA-1"
+        ports:
+          - containerPort: 27017
+#          volumeMounts:
+#            - name: secrets-volume
+#              readOnly: true
+#              mountPath: /etc/secrets-volume
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: mongoconf-cluster-node
+spec:
+  serviceName: "mongoconf-cluster-svc"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        name: mongoconf-cluster-node
+        app: mongoconf
+    spec:
+      hostNetwork: False
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: mongoconf-cluster-node
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        imagePullPolicy: Always
+        env:
+#        - name: MONGOSVC
+#          value: "mongoconf-cluster-svc"
+#        - name: MONGONODE
+#          value: "mongoconf-cluster-node"
+#        - name: CLUSTERNAME
+#          value: "mongoconfcluster"
+#        - name: PORT
+#          value: "27017"
+#        - name: MY_POD_NAME
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+#        - name: MY_POD_NAMESPACE
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.namespace
+        command:
+          - "mongod"
+          - "--port"
+          - "27017"
+          - "--bind_ip"
+          - "0.0.0.0"
+          - "--wiredTigerCacheSizeGB"
+          - "0.25"
+          - "--configsvr"
+          - "--replSet"
+          - "ConfigDBRepSet"
+        #  - "--auth"
+        #  - "--clusterAuthMode"
+        #  - "keyFile"
+        #  - "--keyFile"
+        #  - "/etc/secrets-volume/internal-auth-mongodb-keyfile"
+        #  - "--setParameter"
+        #  - "authenticationMechanisms=SCRAM-SHA-1"
+        ports:
+        - containerPort: 27017
+#        volumeMounts:
+#        - name: mongodbdata
+#          mountPath: /data
+        securityContext:
+          capabilities: {}
+          privileged: true
+#      volumes:
+#      - name: mongodbdata
+#        hostPath:
+#          path: /data
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: mongoshard1-cluster-node
+spec:
+  serviceName: "mongoshard1-cluster-svc"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        name: mongoshard1-cluster-node
+        app: mongoshard1
+    spec:
+      hostNetwork: False
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: mongoshard1-cluster-node
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        imagePullPolicy: Always
+        env:
+#        - name: MONGOSVC
+#          value: "mongoshard1-cluster-svc"
+#        - name: MONGONODE
+#          value: "mongoshard1-cluster-node"
+#        - name: CLUSTERNAME
+#          value: "mongoshard1cluster"
+#        - name: PORT
+#          value: "27017"
+#        - name: MY_POD_NAME
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+#        - name: MY_POD_NAMESPACE
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.namespace
+        command:
+          - "mongod"
+          - "--port"
+          - "27017"
+          - "--bind_ip"
+          - "0.0.0.0"
+          - "--wiredTigerCacheSizeGB"
+          - "0.25"
+          - "--shardsvr"
+          - "--replSet"
+          - "Shard1RepSet"
+#         - "--auth"
+#         - "--clusterAuthMode"
+#         - "keyFile"
+#         - "--keyFile"
+#         - "/etc/secrets-volume/internal-auth-mongodb-keyfile"
+#         - "--setParameter"
+#         - "authenticationMechanisms=SCRAM-SHA-1"
+        ports:
+        - containerPort: 27017
+#        volumeMounts:
+#        - name: mogodata
+#          mountPath: /data
+        securityContext:
+          capabilities: {}
+          privileged: true
+#      volumes:
+#      - name: mogodata
+#        hostPath:
+#          path: /data
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: mongoshard2-cluster-node
+spec:
+  serviceName: "mongoshard2-cluster-svc"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        name: mongoshard2-cluster-node
+        app: mongoshard2
+    spec:
+      hostNetwork: False
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: mongoshard2-cluster-node
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        imagePullPolicy: Always
+        env:
+#        - name: MONGOSVC
+#          value: "mongoshard2-cluster-svc"
+#        - name: MONGONODE
+#          value: "mongoshard2-cluster-node"
+#        - name: CLUSTERNAME
+#          value: "mongoshard2cluster"
+#        - name: PORT
+#          value: "27017"
+#        - name: MY_POD_NAME
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+#        - name: MY_POD_NAMESPACE
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.namespace
+        command:
+          - "mongod"
+          - "--port"
+          - "27017"
+          - "--bind_ip"
+          - "0.0.0.0"
+          - "--wiredTigerCacheSizeGB"
+          - "0.25"
+          - "--shardsvr"
+          - "--replSet"
+          - "Shard2RepSet"
+#         - "--auth"
+#         - "--clusterAuthMode"
+#         - "keyFile"
+#         - "--keyFile"
+#         - "/etc/secrets-volume/internal-auth-mongodb-keyfile"
+#         - "--setParameter"
+#         - "authenticationMechanisms=SCRAM-SHA-1"
+        ports:
+        - containerPort: 27017
+#        volumeMounts:
+#        - name: mongodata
+#          mountPath: /home/mongo
+        securityContext:
+          capabilities: {}
+          privileged: true
+#      volumes:
+#      - name: mongodata
+#        hostPath:
+#          path: /mongodb  
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: mongoshard3-cluster-node
+spec:
+  serviceName: "mongoshard3-cluster-svc"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        name: mongoshard3-cluster-node
+        app: mongoshard3
+    spec:
+      hostNetwork: False
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: mongoshard3-cluster-node
+        image: 127.0.0.1:35000/mongodb:v0.0.2
+        imagePullPolicy: Always
+        env:
+#        - name: MONGOSVC
+#          value: "mongoshard3-cluster-svc"
+#        - name: MONGONODE
+#          value: "mongoshard3-cluster-node"
+#        - name: CLUSTERNAME
+#          value: "mongoshard3cluster"
+#        - name: PORT
+#          value: "27017"
+#        - name: MY_POD_NAME
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+#        - name: MY_POD_NAMESPACE
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.namespace
+        command:
+          - "mongod"
+          - "--port"
+          - "27017"
+          - "--bind_ip"
+          - "0.0.0.0"
+          - "--wiredTigerCacheSizeGB"
+          - "0.25"
+          - "--shardsvr"
+          - "--replSet"
+          - "Shard3RepSet"
+#         - "--auth"
+#         - "--clusterAuthMode"
+#         - "keyFile"
+#         - "--keyFile"
+#         - "/etc/secrets-volume/internal-auth-mongodb-keyfile"
+#         - "--setParameter"
+#         - "authenticationMechanisms=SCRAM-SHA-1"
+        ports:
+        - containerPort: 27017
+#        volumeMounts:
+#        - name: mongodata
+#          mountPath: /home/mongo
+        securityContext:
+          capabilities: {}
+          privileged: true
+#      volumes:
+#      - name: mongodata
+#        hostPath:
+#          path: /mongodb  
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoshard3-cluster-svc
+  labels:
+    name: mongoshard3-cluster-svc
+    app: mongoshard3
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None
+  selector:
+    name: mongoshard3-cluster-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoshard2-cluster-svc
+  labels:
+    name: mongoshard2-cluster-svc
+    app: mongoshard2
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None
+  selector:
+    name: mongoshard2-cluster-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoshard1-cluster-svc
+  labels:
+    name: mongoshard1-cluster-svc
+    app: mongoshard1
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None
+  selector:
+    name: mongoshard1-cluster-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoconf-cluster-svc
+  labels:
+    name: mongoconf-cluster-svc
+    app: mongoconf
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None
+  selector:
+    name: mongoconf-cluster-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-cluster-svc-np
+  labels:
+    name: mongo-cluster-svc-np
+    app: mongo
+spec:
+  ports:
+  - port: 27017
+    name: mongo
+    targetPort: 27017
+    nodePort: 37017
+  type: NodePort
+  selector:
+    name: mongo-cluster-node
