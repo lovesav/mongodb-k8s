@@ -12,4 +12,9 @@ https://github.com/docker-library/mongo/blob/274966255b326b17a4a351867ece4eaa0ee
 http://pauldone.blogspot.com/2017/07/sharded-mongodb-kubernetes.html
 
 
+
+https://www.cnblogs.com/vadim/p/7100683.html
+
+
+
 kubectl apply -f mongoall.yaml 
